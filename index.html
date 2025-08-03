@@ -1,47 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Main Page</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Liam's Roblox Script Share</title>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<link rel="stylesheet" href="css/style.css" />
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col">
-  <nav class="bg-white shadow p-4 flex justify-between items-center">
-    <h1 class="text-xl font-semibold">Welcome</h1>
-    <div class="space-x-4">
-      <button
-        id="settingsBtn"
-        class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition"
-      >
-        Settings
-      </button>
-      <button
-        id="logoutBtn"
-        class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
-      >
-        Logout
-      </button>
-    </div>
-  </nav>
+<body>
 
-  <main class="flex-grow p-6 text-center">
-    <h2 class="text-2xl font-medium mb-4">This is the main protected page</h2>
-    <p class="text-gray-700">Only logged-in users can see this.</p>
-  </main>
+<nav id="navHome" style="display:block;">
+  <button id="toScriptsBtn">Go to Script Share</button>
+</nav>
+<nav id="navScripts" style="display:none;">
+  <button id="toHomeBtn">Back to Home</button>
+</nav>
 
-  <script type="module">
-    import './auth-guard.js';
-    import { auth } from './firebase-config.js';
-    import { signOut } from 'https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js';
+<main id="homeSection" style="display:block;">
+  <h1>Welcome to Liam's Site</h1>
+  <p>Explore Roblox scripts shared by the community!</p>
+  <p><em>This is your homepage content, replace with your actual content as needed.</em></p>
+</main>
 
-    document.getElementById('logoutBtn').onclick = async () => {
-      await signOut(auth);
-      window.location.href = 'login.html';
-    };
+<section id="scriptsSection" style="display:none;">
+  <h2>Roblox Script Sharing</h2>
 
-    document.getElementById('settingsBtn').onclick = () => {
-      alert('Settings button clicked! You can replace this with your settings page or modal.');
-    };
-  </script>
+  <div id="authSection">
+    <h3>Login / Register</h3>
+    <input type="email" id="email" placeholder="Email" autocomplete="username" /><br />
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password" /><br />
+    <input type="text" id="displayName" placeholder="Display Name (for profile)" /><br />
+    <button id="loginBtn">Login</button>
+    <button id="registerBtn">Register</button>
+    <button id="logoutBtn" style="display:none;">Logout</button>
+    <p id="authStatus" class="auth-message">Not logged in</p>
+  </div>
+
+  <div id="uploadSection" style="display:none;">
+    <h3>Upload a new script</h3>
+    <input type="text" id="scriptTitle" placeholder="Script title" /><br />
+    <textarea id="scriptCode" placeholder="Paste your Lua script here" rows="10" cols="50"></textarea><br />
+    <button id="uploadBtn">Upload Script</button>
+  </div>
+
+  <h3>All Uploaded Scripts</h3>
+  <ul id="scriptsList"></ul>
+</section>
+
+<script src="js/app.js"></script>
 </body>
 </html>

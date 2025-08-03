@@ -1,0 +1,75 @@
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f5f7fa;
+  margin: 0;
+  padding: 0 20px;
+  color: #333;
+}
+
+button {
+  background-color: #4A90E2;
+  border: none;
+  color: white;
+  padding: 10px 18px;
+  margin: 8px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #357ABD;
+}
+
+input, textarea {
+  width: 100%;
+  max-width: 600px;
+  padding: 10px;
+  margin: 6px 0 12px 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: monospace;
+}
+
+h1, h2, h3, h4 {
+  color: #222;
+}
+
+#scriptsList li {
+  background: white;
+  margin-bottom: 15px;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.1);
+  word-break: break-word;
+}
+
+#scriptsList pre {
+  background: #272822;
+  color: #f8f8f2;
+  padding: 12px;
+  border-radius: 5px;
+  overflow-x: auto;
+  font-size: 14px;
+  font-family: 'Courier New', Courier, monospace;
+  white-space: pre-wrap;
+}
+
+.auth-message {
+  margin: 8px 0;
+  font-style: italic;
+  color: #666;
+}
+
+.author-info {
+  font-size: 12px;
+  color: #777;
+}
+
+nav {
+  margin-bottom: 20px;
+}
