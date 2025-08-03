@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Script Hub - Login/Register</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <main>
+        <h1>Login</h1>
+        <form id="login-form">
+            <input type="email" id="login-email" placeholder="Email" required />
+            <input type="password" id="login-password" placeholder="Password" required />
+            <button type="submit">Login</button>
+        </form>
+
+        <h1>Register</h1>
+        <form id="register-form">
+            <input type="email" id="register-email" placeholder="Email" required />
+            <input type="password" id="register-password" placeholder="Password" required />
+            <input type="text" id="register-displayname" placeholder="Display Name" required />
+            <button type="submit">Register</button>
+        </form>
+        <div id="auth-message"></div>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+</body>
+</html>

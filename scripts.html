@@ -3,27 +3,31 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Script Hub - Home</title>
+    <title>Script Hub - Scripts</title>
     <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
     <nav>
         <ul class="navbar">
-            <li><a href="index.html" class="active">Home</a></li>
-            <li><a href="scripts.html">Scripts</a></li>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="scripts.html" class="active">Scripts</a></li>
             <li><a href="settings.html">Settings</a></li>
             <li><a href="login.html">Login/Register</a></li>
         </ul>
     </nav>
     <main>
-        <h1>Welcome, <span id="displayName">User</span>!</h1>
-        <section id="user-scripts-section">
-            <h2>Your Uploaded Scripts</h2>
-            <ul id="user-scripts-list"></ul>
+        <h1>Scripts</h1>
+        <section id="upload-script-section">
+            <h2>Upload a Script</h2>
+            <form id="upload-script-form">
+                <input type="text" id="script-title" placeholder="Script Title" required />
+                <textarea id="script-content" placeholder="Paste your script here..." required></textarea>
+                <button type="submit">Upload</button>
+            </form>
         </section>
-        <section id="recent-scripts-section">
-            <h2>Recently Uploaded Scripts</h2>
-            <ul id="recent-scripts-list"></ul>
+        <section id="scripts-list-section">
+            <h2>All Scripts</h2>
+            <ul id="scripts-list"></ul>
         </section>
     </main>
 
@@ -33,5 +37,7 @@
     <script src="js/firebase-config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/scripts.js"></script>
+    <script src="js/comments.js"></script>
+    <script src="js/likes.js"></script>
 </body>
 </html>

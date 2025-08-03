@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Script Hub - Settings</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <nav>
+        <ul class="navbar">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="scripts.html">Scripts</a></li>
+            <li><a href="settings.html" class="active">Settings</a></li>
+            <li><a href="login.html">Login/Register</a></li>
+        </ul>
+    </nav>
+    <main>
+        <h1>Settings</h1>
+        <section id="change-displayname-section">
+            <h2>Change Display Name</h2>
+            <input type="text" id="displayname-input" placeholder="Enter new display name" />
+            <button id="change-displayname-btn">Change Display Name</button>
+        </section>
+        <section id="change-password-section">
+            <h2>Change Password</h2>
+            <input type="password" id="new-password" placeholder="New Password" />
+            <input type="password" id="confirm-password" placeholder="Confirm Password" />
+            <button id="change-password-btn">Change Password</button>
+        </section>
+        <div id="settings-message"></div>
+    </main>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/settings.js"></script>
+</body>
+</html>
