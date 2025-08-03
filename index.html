@@ -1,19 +1,46 @@
 <!DOCTYPE html>
-<html>
-<head><title>Main Page</title></head>
-<body>
-  <h2>Welcome to the Main Page</h2>
-  <button id="logoutBtn">Logout</button>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Main Page</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <nav class="bg-white shadow p-4 flex justify-between items-center">
+    <h1 class="text-xl font-semibold">Welcome</h1>
+    <div class="space-x-4">
+      <button
+        id="settingsBtn"
+        class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition"
+      >
+        Settings
+      </button>
+      <button
+        id="logoutBtn"
+        class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+      >
+        Logout
+      </button>
+    </div>
+  </nav>
+
+  <main class="flex-grow p-6 text-center">
+    <h2 class="text-2xl font-medium mb-4">This is the main protected page</h2>
+    <p class="text-gray-700">Only logged-in users can see this.</p>
+  </main>
 
   <script type="module">
-    import './auth-guard.js'; // Redirects if not logged in
-
+    import './auth-guard.js';
     import { auth } from './firebase-config.js';
     import { signOut } from 'https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js';
 
     document.getElementById('logoutBtn').onclick = async () => {
       await signOut(auth);
       window.location.href = 'login.html';
+    };
+
+    document.getElementById('settingsBtn').onclick = () => {
+      alert('Settings button clicked! You can replace this with your settings page or modal.');
     };
   </script>
 </body>
