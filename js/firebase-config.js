@@ -1,11 +1,12 @@
 // Replace with your own Firebase config object
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MSG_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDikCMGWLIPytpP59lAxVeHOF2Z_0RmtLY",
+  authDomain: "liamvsc.firebaseapp.com",
+  projectId: "liamvsc",
+  storageBucket: "liamvsc.firebasestorage.app",
+  messagingSenderId: "748359707687",
+  appId: "1:748359707687:web:306ec41c292319887fb202",
+  measurementId: "G-VDHY5SG8PP"
 };
 
 firebase.initializeApp(firebaseConfig);
