@@ -1,4 +1,4 @@
--- loadstring(game:HttpGet("https://liamvsc.github.io/scripts/gameDestroyer.lua"))() should work
+-- loadstring(game:HttpGet("https://liamvsc.github.io/Scripts/gameDestroyer.lua"))() should work
 
 local games = {
     [8034886758] = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/liamVSC/scripts/refs/heads/main/PunchMonsters"))(); end;
