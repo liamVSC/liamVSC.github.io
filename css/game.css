@@ -12,7 +12,7 @@
       --blue: #00d4ff;
       --green: #2ecc71;
       --yellow: #ffd700;
-      --pink: #ff6ec7;
+      --pink: #fa32ad;
       --tile: clamp(36px, 9.2vmin, 62px);
     }
 
@@ -1484,4 +1484,20 @@
       .result-actions {
         grid-template-columns: 1fr;
       }
+    }
+
+
+    .life-timer {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .booster:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.55);
     }
