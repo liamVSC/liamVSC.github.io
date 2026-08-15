@@ -31,6 +31,14 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       dailyChallengeLevel: null,
       difficulty: localStorage.getItem("cube-pop-difficulty") || "normal",
       currentCombo: 0,
+      maxLives: 5,
+      lifeRegenMs: 30 * 60 * 1000,
+      lives: Number(localStorage.getItem("cube-pop-lives") ?? 5),
+      nextLifeAt: Number(localStorage.getItem("cube-pop-next-life-at") || 0),
+      lifeTimer: null,
+      levelSeed: 1,
+      rngState: 1,
+      boosterCosts: { hammer: 3, swap: 2, burst: 5 },
       stats: JSON.parse(localStorage.getItem("cube-pop-stats") || JSON.stringify({
         gamesPlayed: 0,
         gamesWon: 0,
@@ -57,8 +65,11 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
         this.bindStats();
         this.initPlayerName();
         this.initAccountSystem();
+        this.restoreLives();
+        this.startLifeTimer();
         this.updateSoundToggle();
         this.updateHomeStats();
+        this.updateBoosterButtons();
         this.showHome();
       },
 
@@ -79,104 +90,148 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       async initAccountSystem() {
-        const client = this.getSupabaseClient();
         const usernameInput = document.getElementById("accountUsername");
         const passwordInput = document.getElementById("accountPassword");
-        
-        if (client) {
-          try {
-            const { data } = await client.auth.getSession();
-            if (data.session) {
-              this.account = {
-                id: data.session.user.id,
-                username: data.session.user.user_metadata?.username || data.session.user.email?.split('@')[0] || 'Player'
-              };
-              this.playerId = this.account.id;
-              this.playerName = this.account.username;
-              if (usernameInput) usernameInput.value = this.account.username;
-              await this.loadProfile();
-            }
-          } catch (error) {
-            console.warn('Session check failed:', error);
-          }
+
+        const saved = JSON.parse(localStorage.getItem("cube-pop-active-account") || "null");
+        if (saved?.id && saved?.username) {
+          this.account = saved;
+          this.playerId = saved.id;
+          this.playerName = saved.username;
+          if (usernameInput) usernameInput.value = saved.username;
+          await this.loadProfile();
         }
-        
-        if (usernameInput) usernameInput.value = this.playerName || "";
+
         if (passwordInput) passwordInput.value = "";
         this.updateAccountStatus();
+        this.updateHomeStats();
+      },
+
+      normalizeUsername(value) {
+        return String(value || "").trim().toLowerCase();
+      },
+
+      bytesToHex(bytes) {
+        return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      },
+
+      hexToBytes(hex) {
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < bytes.length; i += 1) {
+          bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+        }
+        return bytes;
+      },
+
+      makeSalt() {
+        const salt = new Uint8Array(16);
+        crypto.getRandomValues(salt);
+        return this.bytesToHex(salt);
+      },
+
+      async hashPassword(password, saltHex) {
+        const encoder = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+          "raw",
+          encoder.encode(password),
+          { name: "PBKDF2" },
+          false,
+          ["deriveBits"]
+        );
+
+        const bits = await crypto.subtle.deriveBits(
+          {
+            name: "PBKDF2",
+            hash: "SHA-256",
+            salt: this.hexToBytes(saltHex),
+            iterations: 150000
+          },
+          keyMaterial,
+          256
+        );
+
+        return this.bytesToHex(new Uint8Array(bits));
+      },
+
+      secureEqual(a, b) {
+        if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+        let diff = 0;
+        for (let i = 0; i < a.length; i += 1) {
+          diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+        }
+        return diff === 0;
       },
 
       async loadProfile() {
         const client = this.getSupabaseClient();
         if (!client || !this.account) return;
-        
+
         try {
           const { data, error } = await client
-            .from('profiles')
-            .select('total_stars,max_level,win_streak,games_played,games_won,best_combo')
-            .eq('id', this.account.id)
-            .single();
-          
-          if (error && error.code !== 'PGRST116') throw error;
-          if (data) {
-            this.totalStars = data.total_stars || 0;
-            this.maxUnlocked = data.max_level || 1;
-            this.winStreak = data.win_streak || 0;
-            this.stats.gamesPlayed = data.games_played || 0;
-            this.stats.gamesWon = data.games_won || 0;
-            this.stats.bestCombo = data.best_combo || 0;
-          }
+            .from("game_accounts")
+            .select("total_stars,max_level,win_streak,games_played,games_won,best_combo,lives,next_life_at")
+            .eq("id", this.account.id)
+            .maybeSingle();
+
+          if (error) throw error;
+          if (!data) return;
+
+          this.totalStars = data.total_stars || 0;
+          this.maxUnlocked = data.max_level || 1;
+          this.winStreak = data.win_streak || 0;
+          this.stats.gamesPlayed = data.games_played || 0;
+          this.stats.gamesWon = data.games_won || 0;
+          this.stats.bestCombo = data.best_combo || 0;
+          if (Number.isFinite(data.lives)) this.lives = data.lives;
+          if (data.next_life_at) this.nextLifeAt = new Date(data.next_life_at).getTime();
+          this.restoreLives();
         } catch (error) {
-          console.warn('Failed to load profile:', error);
+          console.warn("Failed to load profile:", error);
         }
       },
 
       async syncProfile() {
         const client = this.getSupabaseClient();
         if (!client || !this.account) return;
-        
+
         try {
           const { error } = await client
-            .from('profiles')
-            .upsert({
-              id: this.account.id,
-              username: this.account.username,
+            .from("game_accounts")
+            .update({
               total_stars: this.totalStars,
               max_level: this.maxUnlocked,
               win_streak: this.winStreak,
               games_played: this.stats.gamesPlayed,
               games_won: this.stats.gamesWon,
               best_combo: this.stats.bestCombo,
+              lives: this.lives,
+              next_life_at: this.nextLifeAt ? new Date(this.nextLifeAt).toISOString() : null,
               updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
-          
+            })
+            .eq("id", this.account.id);
+
           if (error) throw error;
         } catch (error) {
-          console.warn('Failed to sync profile:', error);
+          console.warn("Failed to sync profile:", error);
         }
-      },
-
-      hashPassword(value) {
-        let hash = 0;
-        for (let i = 0; i < value.length; i += 1) {
-          hash = ((hash << 5) - hash + value.charCodeAt(i)) >>> 0;
-        }
-        return String(hash);
       },
 
       setActiveAccount(account) {
         this.account = account;
+
         if (account) {
           this.playerId = account.id;
           this.playerName = account.username;
           localStorage.setItem("cube-pop-active-account", JSON.stringify(account));
           document.getElementById("playerName").value = account.username;
+          document.getElementById("accountUsername").value = account.username;
         } else {
           localStorage.removeItem("cube-pop-active-account");
           this.playerId = game_getOrCreatePlayerId();
           this.playerName = `Player-${this.playerId.slice(-4).toUpperCase()}`;
           document.getElementById("playerName").value = this.playerName;
         }
+
         localStorage.setItem("cube-pop-player-name", this.playerName);
         this.updateAccountStatus();
         this.saveProgress();
@@ -190,130 +245,225 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       async createAccount() {
-        const username = document.getElementById("accountUsername").value.trim();
-        const password = document.getElementById("accountPassword").value.trim();
+        const username = this.normalizeUsername(document.getElementById("accountUsername").value);
+        const password = document.getElementById("accountPassword").value;
         const client = this.getSupabaseClient();
-        
+
         if (!client) {
           this.toast("Account system not available. Check Supabase setup.");
           return;
         }
-        
-        if (!username || username.length < 3) {
-          this.toast("Username must be at least 3 characters");
+
+        if (!/^[a-z0-9_]{3,16}$/.test(username)) {
+          this.toast("Username: 3-16 letters, numbers, or underscores");
           return;
         }
-        if (!password || password.length < 4) {
-          this.toast("Password must be at least 4 characters");
+
+        if (!password || password.length < 6 || password.length > 72) {
+          this.toast("Password must be 6-72 characters");
           return;
         }
 
         try {
-          const email = `${username}+${Date.now()}@cubepop.local`;
-          const { data, error } = await client.auth.signUp({
-            email,
-            password,
-            options: {
-              data: { username }
-            }
-          });
-          
-          if (error) throw error;
-          if (!data.user) throw new Error('Signup failed');
-          
-          // Create profile
-          const { error: profileError } = await client
-            .from('profiles')
+          const { data: existing, error: lookupError } = await client
+            .from("game_accounts")
+            .select("id")
+            .eq("username", username)
+            .limit(1);
+
+          if (lookupError) throw lookupError;
+          if (existing && existing.length) {
+            this.toast("Username is already taken");
+            return;
+          }
+
+          const salt = this.makeSalt();
+          const passwordHash = await this.hashPassword(password, salt);
+          const id = crypto.randomUUID();
+
+          const { error } = await client
+            .from("game_accounts")
             .insert({
-              id: data.user.id,
+              id,
               username,
+              password_salt: salt,
+              password_hash: passwordHash,
               total_stars: 0,
               max_level: 1,
-              win_streak: 0
+              win_streak: 0,
+              games_played: 0,
+              games_won: 0,
+              best_combo: 0,
+              lives: this.maxLives,
+              next_life_at: null,
+              updated_at: new Date().toISOString()
             });
-          
-          if (profileError) throw profileError;
-          
-          this.account = { id: data.user.id, username };
-          this.setActiveAccount(this.account);
+
+          if (error) throw error;
+
+          this.totalStars = 0;
+          this.maxUnlocked = 1;
+          this.winStreak = 0;
+          this.stats = {
+            gamesPlayed: 0,
+            gamesWon: 0,
+            totalMoves: 0,
+            bestCombo: 0
+          };
+
+          this.setActiveAccount({ id, username });
+          document.getElementById("accountPassword").value = "";
+          this.updateHomeStats();
           this.toast(`Account created: ${username}`);
         } catch (error) {
-          console.error('Signup failed:', error);
-          this.toast(`Error: ${error.message || 'Signup failed'}`);
+          console.error("Signup failed:", error);
+          this.toast(`Error: ${error.message || "Signup failed"}`);
         }
       },
 
       async loginAccount() {
-        const username = document.getElementById("accountUsername").value.trim();
-        const password = document.getElementById("accountPassword").value.trim();
+        const username = this.normalizeUsername(document.getElementById("accountUsername").value);
+        const password = document.getElementById("accountPassword").value;
         const client = this.getSupabaseClient();
-        
+
         if (!client) {
           this.toast("Account system not available. Check Supabase setup.");
           return;
         }
-        
+
         if (!username || !password) {
           this.toast("Enter a username and password");
           return;
         }
 
         try {
-          // First, try to find the user's email by username
-          const { data: profiles, error: searchError } = await client
-            .from('profiles')
-            .select('id')
-            .eq('username', username)
-            .limit(1);
-          
-          if (searchError) throw searchError;
-          if (!profiles || profiles.length === 0) {
-            this.toast("Username not found");
+          const { data, error } = await client
+            .from("game_accounts")
+            .select("id,username,password_salt,password_hash,total_stars,max_level,win_streak,games_played,games_won,best_combo,lives,next_life_at")
+            .eq("username", username)
+            .maybeSingle();
+
+          if (error) throw error;
+          if (!data) {
+            this.toast("Invalid username or password");
             return;
           }
-          
-          const userId = profiles[0].id;
-          const email = `${username}+${userId}@cubepop.local`;
-          
-          const { data, error } = await client.auth.signInWithPassword({
-            email,
-            password
-          });
-          
-          if (error) throw error;
-          if (!data.user) throw new Error('Login failed');
-          
-          this.account = { id: data.user.id, username };
-          this.setActiveAccount(this.account);
-          this.toast(`Welcome back, ${username}`);
+
+          const candidateHash = await this.hashPassword(password, data.password_salt);
+          if (!this.secureEqual(candidateHash, data.password_hash)) {
+            this.toast("Invalid username or password");
+            return;
+          }
+
+          this.totalStars = data.total_stars || 0;
+          this.maxUnlocked = data.max_level || 1;
+          this.winStreak = data.win_streak || 0;
+          this.stats.gamesPlayed = data.games_played || 0;
+          this.stats.gamesWon = data.games_won || 0;
+          this.stats.bestCombo = data.best_combo || 0;
+          if (Number.isFinite(data.lives)) this.lives = data.lives;
+          this.nextLifeAt = data.next_life_at ? new Date(data.next_life_at).getTime() : 0;
+          this.restoreLives();
+
+          this.setActiveAccount({ id: data.id, username: data.username });
+          document.getElementById("accountPassword").value = "";
+          this.updateHomeStats();
+          this.toast(`Welcome back, ${data.username}`);
         } catch (error) {
-          console.error('Login failed:', error);
-          this.toast(`Error: ${error.message || 'Login failed'}`);
+          console.error("Login failed:", error);
+          this.toast(`Error: ${error.message || "Login failed"}`);
         }
       },
 
       async logoutAccount() {
-        const client = this.getSupabaseClient();
-        
-        if (client) {
-          try {
-            await client.auth.signOut();
-          } catch (error) {
-            console.warn('Logout failed:', error);
-          }
-        }
-        
         this.setActiveAccount(null);
+        document.getElementById("accountPassword").value = "";
         this.toast("Logged out");
       },
 
       updateHomeStats() {
-        document.getElementById("totalStars").textContent = `${this.totalStars} *`;
+        this.restoreLives(false);
+        document.getElementById("totalStars").textContent = `${this.totalStars} ★`;
         const currentLevel = document.getElementById("currentLevelDisplay");
-        if (currentLevel) {
-          currentLevel.textContent = `Level ${this.maxUnlocked}`;
-        }
+        if (currentLevel) currentLevel.textContent = `Level ${this.maxUnlocked}`;
         document.getElementById("unlockedLevel").textContent = this.winStreak;
+
+        const livesHome = document.getElementById("livesHome");
+        if (livesHome) livesHome.textContent = `${this.lives}/${this.maxLives}`;
+
+        const livesGame = document.getElementById("livesGame");
+        if (livesGame) livesGame.textContent = `${this.lives}/${this.maxLives}`;
+
+        const timer = document.getElementById("lifeTimer");
+        if (timer) {
+          if (this.lives >= this.maxLives || !this.nextLifeAt) {
+            timer.textContent = "Full";
+          } else {
+            const remaining = Math.max(0, this.nextLifeAt - Date.now());
+            const mins = Math.floor(remaining / 60000);
+            const secs = Math.floor((remaining % 60000) / 1000);
+            timer.textContent = `${mins}:${String(secs).padStart(2, "0")}`;
+          }
+        }
+
+        this.updateBoosterButtons();
+      },
+
+      restoreLives(sync = true) {
+        const now = Date.now();
+        if (this.lives >= this.maxLives) {
+          this.lives = this.maxLives;
+          this.nextLifeAt = 0;
+        } else if (!this.nextLifeAt) {
+          this.nextLifeAt = now + this.lifeRegenMs;
+        } else if (now >= this.nextLifeAt) {
+          const recovered = 1 + Math.floor((now - this.nextLifeAt) / this.lifeRegenMs);
+          this.lives = Math.min(this.maxLives, this.lives + recovered);
+          if (this.lives >= this.maxLives) {
+            this.nextLifeAt = 0;
+          } else {
+            this.nextLifeAt += recovered * this.lifeRegenMs;
+          }
+        }
+
+        localStorage.setItem("cube-pop-lives", String(this.lives));
+        localStorage.setItem("cube-pop-next-life-at", String(this.nextLifeAt || 0));
+        if (sync && this.account) this.syncProfile();
+      },
+
+      startLifeTimer() {
+        if (this.lifeTimer) clearInterval(this.lifeTimer);
+        this.lifeTimer = setInterval(() => {
+          const before = this.lives;
+          this.restoreLives(false);
+          this.updateHomeStats();
+          if (this.account && this.lives !== before) this.syncProfile();
+        }, 1000);
+      },
+
+      loseLife() {
+        this.restoreLives(false);
+        if (this.lives <= 0) return false;
+        const wasFull = this.lives === this.maxLives;
+        this.lives -= 1;
+        if (wasFull || !this.nextLifeAt) {
+          this.nextLifeAt = Date.now() + this.lifeRegenMs;
+        }
+        localStorage.setItem("cube-pop-lives", String(this.lives));
+        localStorage.setItem("cube-pop-next-life-at", String(this.nextLifeAt));
+        if (this.account) this.syncProfile();
+        this.updateHomeStats();
+        return true;
+      },
+
+      canStartLevel() {
+        this.restoreLives(false);
+        if (this.lives > 0) return true;
+        const remaining = Math.max(0, this.nextLifeAt - Date.now());
+        const mins = Math.ceil(remaining / 60000);
+        this.toast(`No lives left — next life in about ${mins} min`);
+        this.updateHomeStats();
+        return false;
       },
 
       saveProgress() {
@@ -325,6 +475,8 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
         localStorage.setItem("cube-pop-last-level", String(this.level));
         localStorage.setItem("cube-pop-stats", JSON.stringify(this.stats));
         localStorage.setItem("cube-pop-achievements", JSON.stringify(this.achievements));
+        localStorage.setItem("cube-pop-lives", String(this.lives));
+        localStorage.setItem("cube-pop-next-life-at", String(this.nextLifeAt || 0));
         if (this.account) {
           this.syncProfile();
         }
@@ -355,8 +507,35 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       setRandomDifficulty() {
-        const difficulties = ["easy", "normal", "hard"];
-        this.difficulty = difficulties[Math.floor(Math.random() * difficulties.length)];
+        if (this.level <= 5) this.difficulty = "easy";
+        else if (this.level <= 12) this.difficulty = "normal";
+        else this.difficulty = "hard";
+      },
+
+      seedForLevel(level) {
+        let x = (0x9e3779b9 ^ Math.imul(level + 17, 2654435761)) >>> 0;
+        x ^= x >>> 16;
+        x = Math.imul(x, 2246822507) >>> 0;
+        x ^= x >>> 13;
+        return x >>> 0 || 1;
+      },
+
+      resetLevelRandom(level) {
+        this.levelSeed = this.seedForLevel(level);
+        this.rngState = this.levelSeed;
+      },
+
+      seededRandom() {
+        let x = this.rngState >>> 0;
+        x ^= x << 13;
+        x ^= x >>> 17;
+        x ^= x << 5;
+        this.rngState = x >>> 0 || 1;
+        return (this.rngState >>> 0) / 4294967296;
+      },
+
+      activeColors(level = this.level) {
+        return level <= 4 ? COLORS.slice(0, 4) : COLORS;
       },
 
       openStats() {
@@ -412,7 +591,7 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
 
         if (!window.supabaseClient) {
           window.supabaseClient = window.supabase.createClient(url, anonKey, {
-            auth: { persistSession: false }
+            auth: { persistSession: false, autoRefreshToken: false }
           });
         }
 
@@ -442,6 +621,7 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
         try {
           const client = this.getSupabaseClient();
           const payload = {
+            user_id: this.playerId,
             name: this.playerName,
             total_stars: this.totalStars,
             max_level: this.maxUnlocked,
@@ -449,7 +629,6 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
           };
 
           if (client && this.account) {
-            payload.user_id = this.playerId;
             const { error } = await client
               .from("leaderboard")
               .upsert(payload, { onConflict: "user_id" });
@@ -575,16 +754,18 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       startDailyChallenge() {
-        const dateKey = new Date().toISOString().slice(0, 10);
+        const now = new Date();
+        const dateKey = [
+          now.getFullYear(),
+          String(now.getMonth() + 1).padStart(2, "0"),
+          String(now.getDate()).padStart(2, "0")
+        ].join("-");
         let seed = 0;
         for (let i = 0; i < dateKey.length; i += 1) {
           seed += dateKey.charCodeAt(i) * (i + 1);
         }
         const challengeLevel = 2 + (seed % 7);
         this.dailyChallengeLevel = challengeLevel;
-        this.level = challengeLevel;
-        this.maxUnlocked = Math.max(this.maxUnlocked, challengeLevel);
-        this.saveProgress();
         this.startLevel(challengeLevel);
         this.toast(`Daily challenge: Level ${challengeLevel}`);
       },
@@ -598,51 +779,73 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       startLevel(level) {
+        this.restoreLives(false);
+        if (!this.canStartLevel()) return;
+
         this.hideResult();
         document.getElementById("home").classList.add("hidden");
         document.getElementById("gameScreen").classList.remove("hidden");
-        this.level = level;
+        this.level = Math.max(1, Number(level) || 1);
         this.currentCombo = 0;
         this.setRandomDifficulty();
+        this.resetLevelRandom(this.level);
         this.saveProgress();
-        let baseMoves = Math.max(22, 32 - Math.floor(level * 1.5));
-        if (this.difficulty === "easy") baseMoves = Math.floor(baseMoves * 1.4);
-        if (this.difficulty === "hard") baseMoves = Math.floor(baseMoves * 0.7);
-        this.moves = baseMoves;
+
+        if (this.level <= 3) this.moves = 34;
+        else if (this.level <= 5) this.moves = 32;
+        else if (this.level <= 8) this.moves = 30;
+        else if (this.level <= 12) this.moves = 28;
+        else if (this.level <= 18) this.moves = 27;
+        else this.moves = 26;
+
         this.startMoves = this.moves;
         this.selectedTool = null;
-        this.goals = this.makeGoals(level);
+        this.goals = this.makeGoals(this.level);
         this.board = Array.from({ length: SIZE }, () =>
           Array.from({ length: SIZE }, () => this.makeTile())
         );
-        this.placeObstacles(level);
+        this.placeObstacles(this.level);
         this.ensurePlayable();
         this.render();
+
         const difficultyEmoji = { easy: "🟩", normal: "🟨", hard: "🟥" };
-        this.toast(`Level ${level} - ${this.difficulty.toUpperCase()} ${difficultyEmoji[this.difficulty]}`);
+        this.toast(`Level ${this.level} - ${this.difficulty.toUpperCase()} ${difficultyEmoji[this.difficulty]}`);
         this.playSound("start");
       },
 
       makeGoals(level) {
-        const shuffled = [...COLORS].sort(() => Math.random() - 0.5);
-        const first = shuffled[0];
-        const second = shuffled[1];
-        const goals = {
-          [first]: 10 + level * 2,
-          [second]: 8 + level * 2
-        };
-        if (level >= 2) goals.crate = Math.min(8, 2 + Math.floor(level / 2));
-        if (level >= 3) goals.ice = Math.min(10, 2 + level);
+        const colors = [...this.activeColors(level)];
+        for (let i = colors.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(this.seededRandom() * (i + 1));
+          [colors[i], colors[j]] = [colors[j], colors[i]];
+        }
+
+        const goals = {};
+        if (level <= 2) {
+          goals[colors[0]] = 8 + level * 2;
+        } else if (level <= 5) {
+          goals[colors[0]] = 10 + level;
+          goals[colors[1]] = 8 + level;
+        } else {
+          goals[colors[0]] = 12 + Math.floor(level * 1.15);
+          goals[colors[1]] = 10 + Math.floor(level * 1.05);
+        }
+
+        if (level >= 4) goals.crate = Math.min(10, 1 + Math.floor((level - 2) / 2));
+        if (level >= 7) goals.ice = Math.min(12, 2 + Math.floor((level - 5) * 0.7));
         return goals;
       },
 
-      makeTile(color = COLORS[Math.floor(Math.random() * COLORS.length)], power = null, extra = {}) {
-        return { id: nextTileId += 1, color, power, obstacle: null, ice: false, ...extra };
+      makeTile(color = null, power = null, extra = {}) {
+        const palette = this.activeColors();
+        const chosen = color || palette[Math.floor(this.seededRandom() * palette.length)];
+        return { id: nextTileId += 1, color: chosen, power, obstacle: null, ice: false, ...extra };
       },
 
       placeObstacles(level) {
         const crateCount = this.goals.crate || 0;
         const iceCount = this.goals.ice || 0;
+
         this.randomCells(crateCount).forEach(([row, col]) => {
           this.board[row][col] = this.makeTile("crate", null, { obstacle: "crate" });
         });
@@ -653,17 +856,48 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       chooseTool(tool) {
+        const cost = this.boosterCosts[tool] || 0;
+        if (this.selectedTool !== tool && this.totalStars < cost) {
+          this.toast(`Not enough stars — ${tool} costs ${cost} ★`);
+          return;
+        }
         this.selectedTool = this.selectedTool === tool ? null : tool;
+        this.updateBoosterButtons();
+      },
+
+      updateBoosterButtons() {
+        const labels = {
+          hammer: ["Hammer", "clear 1"],
+          swap: ["Shuffle", "shuffle board"],
+          burst: ["Burst", "clear 3×3"]
+        };
         document.querySelectorAll(".booster").forEach((button) => {
-          button.classList.toggle("active", button.dataset.tool === this.selectedTool);
+          const tool = button.dataset.tool;
+          const cost = this.boosterCosts[tool] || 0;
+          const [name, effect] = labels[tool] || [tool, ""];
+          button.classList.toggle("active", tool === this.selectedTool);
+          button.disabled = this.totalStars < cost && tool !== this.selectedTool;
+          button.innerHTML = `${name}<small>${effect} · ${cost} ★</small>`;
         });
+      },
+
+      spendBooster(tool) {
+        const cost = this.boosterCosts[tool] || 0;
+        if (this.totalStars < cost) {
+          this.toast(`Not enough stars — ${tool} costs ${cost} ★`);
+          return false;
+        }
+        this.totalStars -= cost;
+        this.saveProgress();
+        this.updateHomeStats();
+        return true;
       },
 
       render() {
         document.getElementById("moves").textContent = this.moves;
         document.getElementById("level").textContent = this.level;
         document.getElementById("levelName").textContent = `Level ${this.level}`;
-        document.getElementById("movesMeter").style.width = `${Math.max(0, (this.moves / Math.max(22, 32 - Math.floor(this.level * 1.5))) * 100)}%`;
+        document.getElementById("movesMeter").style.width = `${Math.max(0, (this.moves / Math.max(1, this.startMoves)) * 100)}%`;
         this.renderGoals();
         this.renderBoard();
       },
@@ -933,7 +1167,16 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
 
       async useTool(row, col) {
         const tool = this.selectedTool;
-        this.chooseTool(tool);
+        if (!tool) return;
+        if (!this.spendBooster(tool)) {
+          this.selectedTool = null;
+          this.updateBoosterButtons();
+          return;
+        }
+
+        this.selectedTool = null;
+        this.updateBoosterButtons();
+
         if (tool === "swap") {
           this.shuffleBoard();
           this.playSound("shuffle");
@@ -979,10 +1222,11 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
           this.maxUnlocked = Math.max(this.maxUnlocked, this.level + 1);
           this.winStreak += 1;
           const earned = this.starCount();
-          const multiplier = Math.min(5, 1 + Math.floor(this.currentCombo / 10));
-          const earnedWithMultiplier = Math.floor(earned * multiplier);
+          const reward = this.starReward(earned);
+          const multiplier = 1;
+          const earnedWithMultiplier = reward;
           this.bestStars[this.level] = Math.max(this.bestStars[this.level] || 0, earned);
-          this.totalStars += earnedWithMultiplier;
+          this.totalStars += reward;
           this.stats.gamesPlayed += 1;
           this.stats.gamesWon += 1;
           this.stats.totalMoves += this.startMoves - this.moves;
@@ -995,11 +1239,12 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
           this.submitScore();
           this.render();
           this.playSound("win");
-          this.showResult(true, earned, multiplier);
+          this.showResult(true, earned, reward);
           return;
         }
 
         if (this.moves <= 0) {
+          this.loseLife();
           this.winStreak = 0;
           this.stats.gamesPlayed += 1;
           this.stats.totalMoves += this.startMoves;
@@ -1064,32 +1309,39 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
             if (predicate(this.board[row][col], row, col)) cells.push([row, col]);
           }
         }
-        return cells.sort(() => Math.random() - 0.5).slice(0, count);
+        for (let i = cells.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(this.seededRandom() * (i + 1));
+          [cells[i], cells[j]] = [cells[j], cells[i]];
+        }
+        return cells.slice(0, count);
       },
 
       won() {
         return Object.values(this.goals).every((left) => left <= 0);
       },
 
-      showResult(won, earned = 0, multiplier = 1) {
+      showResult(won, earned = 0, reward = 0) {
         const stars = won ? earned : 0;
-        const finalStars = won ? Math.floor(stars * multiplier) : 0;
         const modal = document.getElementById("resultModal");
         document.getElementById("resultTitle").textContent = won ? "Level Complete" : "Try Again";
         document.getElementById("resultMoves").textContent = this.moves;
         document.getElementById("resultLevel").textContent = this.level;
-        document.getElementById("resultStarsEarned").textContent = multiplier > 1 
-          ? `+${finalStars} (${stars}×${multiplier})`
-          : `+${finalStars}`;
+        document.getElementById("resultStarsEarned").textContent = won ? `+${reward} ★` : `-1 life`;
         document.getElementById("resultTotalStars").textContent = this.totalStars;
         document.getElementById("resultNext").disabled = !won;
+
+        const retry = document.getElementById("resultRetry");
+        if (retry) {
+          retry.disabled = !won && this.lives <= 0;
+          retry.textContent = !won && this.lives <= 0 ? "No Lives" : "Retry";
+        }
 
         const starRow = document.getElementById("resultStars");
         starRow.innerHTML = "";
         for (let i = 1; i <= 3; i += 1) {
           const star = document.createElement("div");
           star.className = `star ${i <= stars ? "on" : ""}`;
-          star.textContent = "*";
+          star.textContent = "★";
           starRow.appendChild(star);
         }
 
@@ -1097,7 +1349,16 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       hideResult() {
-        document.getElementById("resultModal").classList.add("hidden");
+        const modal = document.getElementById("resultModal");
+        if (modal) modal.classList.add("hidden");
+      },
+
+      starReward(rating) {
+        let reward = 3 + rating * 2;
+        if (this.moves >= Math.ceil(this.startMoves * 0.35)) reward += 2;
+        if (this.currentCombo >= 10) reward += 1;
+        if (this.winStreak > 0 && this.winStreak % 3 === 0) reward += 2;
+        return reward;
       },
 
       starCount() {
@@ -1207,7 +1468,11 @@ const COLORS = ["red", "blue", "green", "yellow", "pink"];
       },
 
       shuffleBoard() {
-        const flat = this.board.flat().sort(() => Math.random() - 0.5);
+        const flat = this.board.flat();
+        for (let i = flat.length - 1; i > 0; i -= 1) {
+          const j = Math.floor(this.seededRandom() * (i + 1));
+          [flat[i], flat[j]] = [flat[j], flat[i]];
+        }
         this.board = Array.from({ length: SIZE }, (_, r) =>
           Array.from({ length: SIZE }, (_, c) => flat[r * SIZE + c] || this.makeTile())
         );
