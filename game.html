@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Cube Pop Adventure - a colourful block puzzle game.">
+  <meta name="description" content="Cube Blast - a colourful block puzzle game.">
   <title>Cube Blast</title>
   <link rel="stylesheet" href="css/game.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -31,7 +31,7 @@
           <div class="label">Account</div>
           <div class="account-row">
             <input class="player-input" id="accountUsername" maxlength="16" spellcheck="false" placeholder="Username" />
-            <input class="player-input" id="accountPassword" type="password" maxlength="20" placeholder="Password" />
+            <input class="player-input" id="accountPassword" type="password" minlength="6" maxlength="72" placeholder="Password" />
           </div>
           <div class="account-actions">
             <button class="leaderboard-button" id="createAccountBtn">Create</button>
@@ -52,6 +52,11 @@
           <div class="stat">
             <div class="label">Win Streak</div>
             <div class="value" id="unlockedLevel">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Lives</div>
+            <div class="value" id="livesHome">5/5</div>
+            <small class="life-timer" id="lifeTimer">Full</small>
           </div>
         </div>
       </div>
@@ -86,6 +91,10 @@
           <div class="label">Level</div>
           <div class="value" id="level">1</div>
         </div>
+        <div class="stat">
+          <div class="label">Lives</div>
+          <div class="value" id="livesGame">5/5</div>
+        </div>
       </div>
 
       <div>
@@ -112,9 +121,9 @@
       <div>
         <div class="label">Boosters</div>
         <div class="boosters">
-          <button class="booster" id="hammer" data-tool="hammer">Hammer<small>clear 1</small></button>
-          <button class="booster" id="swap" data-tool="swap">Swap<small>shuffle</small></button>
-          <button class="booster" id="burst" data-tool="burst">Burst<small>3x3</small></button>
+          <button class="booster" id="hammer" data-tool="hammer">Hammer<small>clear 1 · 3 ★</small></button>
+          <button class="booster" id="swap" data-tool="swap">Shuffle<small>shuffle board · 2 ★</small></button>
+          <button class="booster" id="burst" data-tool="burst">Burst<small>clear 3×3 · 5 ★</small></button>
         </div>
       </div>
 
@@ -125,7 +134,7 @@
       </div>
 
       <div class="help">
-        Tap groups of 2 or more matching cubes. Big groups create rockets, bombs, and color bursts. Tap two power-ups sitting next to each other for a mega combo. Finish every goal before moves run out.
+        Tap groups of 2 or more matching cubes. Big groups create rockets, bombs, and color bursts. Tap two power-ups sitting next to each other for a mega combo. Finish every goal before moves run out. Losing costs 1 life. Lives regenerate every 30 minutes. Boosters cost stars.
       </div>
     </aside>
   </main>
@@ -163,7 +172,7 @@
   <div class="result-backdrop hidden" id="leaderboardModal" role="dialog" aria-modal="true" aria-labelledby="leaderboardTitle">
     <div class="result-modal leaderboard-modal">
       <h2 class="result-title" id="leaderboardTitle">Leaderboard</h2>
-      <p class="leaderboard-note">Ranked by total stars collected. Scores are stored online.</p>
+      <p class="leaderboard-note">Ranked by total stars collected. Prototype accounts are stored directly in Supabase.</p>
       <div class="leaderboard-list" id="leaderboardList"></div>
       <div class="result-actions">
         <button class="result-action" id="leaderboardRefresh">Refresh</button>
