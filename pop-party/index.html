@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#6b4be8">
+  <meta name="description" content="Pop Party — a colourful character-matching puzzle adventure.">
+  <title>Pop Party — Tiny pops, big combos!</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Pop Party home"><span class="brand-mark">✦</span><span>pop<span class="brand-accent">party</span></span></a>
+      <div class="wallet" aria-label="Your coins"><span aria-hidden="true">🪙</span><strong id="coin-count">0</strong></div>
+      <button class="icon-button" id="settings-button" aria-label="Settings">⚙</button>
+    </header>
+
+    <main>
+      <section class="hero-row">
+        <div><p class="eyebrow">A LITTLE GAME WITH BIG JOY</p><h1>Ready, set, <span>POP!</span></h1><p class="subtitle">Match your pals. Make a mess. Be a legend.</p></div>
+        <div class="hero-pal" aria-hidden="true"><span>✦</span><div class="hero-face">☺</div></div>
+      </section>
+
+      <section class="level-card" aria-label="Current level">
+        <div class="level-number"><span>LEVEL</span><strong id="level-number">1</strong></div>
+        <div class="level-progress"><div class="level-stars" id="level-stars" aria-label="Level stars">☆ ☆ ☆</div><div class="progress-track"><span id="progress-fill"></span></div></div>
+        <button id="map-button" class="map-button">MAP <span>⌁</span></button>
+      </section>
+
+      <section class="goal-row" aria-label="Level goals">
+        <div class="goal-copy"><span class="eyebrow">TODAY'S MISSION</span><strong id="goal-title">Collect 12 pals</strong><span id="goal-subtitle">Make every move count!</span></div>
+        <div id="goals" class="goals"></div>
+      </section>
+
+      <section class="board-wrap" aria-label="Puzzle board">
+        <div class="board-ribbon"><span>✨</span> POP YOUR WAY TO THE TOP <span>✨</span></div>
+        <div id="board" class="board" role="grid" aria-label="Puzzle tiles"></div>
+        <div class="board-footer"><span>Moves left <strong id="moves-left">25</strong></span><span id="combo-label">Let the popping begin!</span></div>
+      </section>
+
+      <section class="powerups" aria-label="Power-ups">
+        <p>NEED A HAND?</p>
+        <button class="powerup" data-power="rocket"><span class="power-icon rocket-icon">➜</span><span><strong>Rocket</strong><small id="rocket-count">0 owned</small></span><span class="power-plus">+</span></button>
+        <button class="powerup" data-power="bomb"><span class="power-icon bomb-icon">✹</span><span><strong>Pop bomb</strong><small id="bomb-count">0 owned</small></span><span class="power-plus">+</span></button>
+        <button class="powerup" data-power="shuffle"><span class="power-icon shuffle-icon">⤨</span><span><strong>Shuffle</strong><small>Fresh possibilities</small></span><span class="power-plus">+</span></button>
+      </section>
+
+      <section class="bottom-note"><span>💜</span> Tiny pops. Big happy.</section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="modal-backdrop">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" id="modal-close" aria-label="Close">×</button>
+      <div class="modal-emoji" id="modal-emoji">🎉</div><h2 id="modal-title">Pop-tastic!</h2><p id="modal-copy"></p>
+      <div id="modal-extra"></div><button id="modal-primary" class="primary-button">Keep popping!</button>
+      <button id="modal-secondary" class="secondary-button hidden">Try again</button>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./game-core.js"></script>
+  <script src="./game.js"></script>
+</body>
+</html>
