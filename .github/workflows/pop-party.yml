@@ -1,0 +1,25 @@
+name: Pop Party CI
+on:
+  push:
+    paths:
+      - "pop-party/**"
+      - ".github/workflows/pop-party.yml"
+  pull_request:
+    paths:
+      - "pop-party/**"
+      - ".github/workflows/pop-party.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  puzzle-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test puzzle rules
+        run: node --test pop-party/tests/*.test.cjs
