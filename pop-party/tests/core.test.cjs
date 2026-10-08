@@ -1,0 +1,11 @@
+const test=require("node:test");
+const assert=require("node:assert/strict");
+const C=require("../game-core.js");
+test("board dimensions and deterministic generation",()=>{const a=C.createBoard(7,1234),b=C.createBoard(7,1234);assert.equal(a.length,C.COLS*C.ROWS);assert.deepEqual(a,b);assert.ok(a.every(v=>Number.isInteger(v)&&v>=0&&v<C.COLOURS));});
+test("generated board starts without an automatic three-match",()=>{for(let level=1;level<40;level++){const b=C.createBoard(level,level*77);for(let i=0;i<b.length;i++){const x=i%C.COLS,y=Math.floor(i/C.COLS);assert.ok(!(x>=2&&b[i]===b[i-1]&&b[i]===b[i-2]));assert.ok(!(y>=2&&b[i]===b[i-C.COLS]&&b[i]===b[i-2*C.COLS]));}}});
+test("group detection is orthogonal and same-colour only",()=>{const b=Array(72).fill(0);b[0]=1;b[1]=1;b[2]=2;b[8]=1;b[9]=1;assert.deepEqual(C.groupAt(b,0),[0,1,8,9]);assert.equal(C.groupAt(b,2).length,1);});
+test("gravity keeps columns ordered and compacts downward",()=>{const b=Array(72).fill(null);b[0]=2;b[8]=1;b[16]=4;b[17]=3;const g=C.applyGravity(b);assert.equal(g[7*8],2);assert.equal(g[8*8],1);assert.equal(g[8*8+1],3);assert.ok(g.slice(0,56).every(v=>v===null));});
+test("level difficulty is bounded and increases gradually",()=>{const a=C.levelConfig(1),b=C.levelConfig(30);assert.equal(a.level,1);assert.ok(a.moves>=18&&a.moves<=25);assert.ok(b.targets[0].count>=a.targets[0].count);assert.equal(C.levelConfig(0).level,1);});
+test("group score rewards larger groups and combos can multiply it",()=>{assert.ok(C.scoreForGroup(5)>C.scoreForGroup(2));assert.equal(C.scoreForGroup(4)*2,C.scoreForGroup(4)*2);});
+test("stars, progress defaults and corrupt saves are safe",()=>{assert.equal(C.starsFor(100,[10,20,30]),3);assert.equal(C.starsFor(15,[10,20,30]),1);assert.equal(C.sanitiseProgress(null).unlocked,1);assert.equal(C.sanitiseProgress({unlocked:99999,coins:-4}).unlocked,C.MAX_LEVEL);assert.equal(C.sanitiseProgress({coins:-4}).coins,0);});
+test("board always has a valid pair after generation",()=>{for(let level=1;level<=100;level++)assert.equal(C.hasMove(C.createBoard(level,level*123)),true);});
